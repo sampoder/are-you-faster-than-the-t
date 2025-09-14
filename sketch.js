@@ -46,6 +46,12 @@ let beaver;
 
 let header;
 
+let bgMusic;
+
+function preload() {
+  bgMusic = loadSound('mbta.mp3'); // put your file path here
+}
+
 function getSubwayImage(r) {
   if(r == 0){
     return subwayZero
@@ -326,6 +332,9 @@ function setup() {
   fontBold = loadFont("visual-assets/HelveticaNeueBold.otf")
   
   generateObstacles()
+
+  bgMusic.loop();       // loop continuously
+  bgMusic.setVolume(0.5); // optional, lower the volume
 }
 
 function generateObstacles() {
