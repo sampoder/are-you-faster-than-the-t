@@ -1,0 +1,10 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+}
+canvas {
+  display: block;
+  margin: auto;
+  margin-top: calc((100vh - 600px) / 2);
+}
