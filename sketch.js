@@ -13,6 +13,9 @@ let fontRegular;
 let fontBold;
 let station;
 
+let gateOpenedAt = null;   // timestamp when gates fully open
+let gateDelay = 500;       // half a second delay before stage transition
+
 let subwayZero;
 
 let subwayFifteen;
@@ -40,6 +43,8 @@ let carTilt;
 let bear;
 
 let beaver;
+
+let header;
 
 function getSubwayImage(r) {
   if(r == 0){
@@ -113,7 +118,14 @@ let stations = {
   1919: "Bolyston St"
 }
 
-let jump = 0
+
+// jump logic
+let isJumping = false;
+let jumpVel = 0;
+let gravity = 1.2;
+let jumpStrength = -18;
+let groundY = 300;
+let mascotY = groundY;
 
 let steps = [
   {
@@ -297,6 +309,7 @@ function setup() {
   leftFareGate = loadImage('visual-assets/left-fare-gate.png');
   rightFareGate = loadImage('visual-assets/right-fare-gate.png');
   otherGates = loadImage("visual-assets/turnstiles.png");
+  header = loadImage("visual-assets/header.png");
   
   cardTap = loadImage("visual-assets/tap.png");
   deadNotif = loadImage("visual-assets/deadNotif.png");
@@ -315,24 +328,29 @@ function setup() {
 }
 
 function generateObstacles() {
-  obstacles = []
+  obstacles = [];
+  let lastObstacleStep = -50; // last step where an obstacle was placed
+  let minGap = 80;            // minimum number of steps between obstacles
+  let types = ["car", "bear", "beaver"];
+  let typeIndex = 0;          // cycle through types evenly
+
   steps.forEach((step, i) => {
-    if(Math.random() < 0.015 && i > 200) {
-      let type
-      if(Math.random() > 0.66) {
-        type = "car"
-      } else if(Math.random() > 0.5) {
-        type = "bear"
-      } else if(Math.random() > 0.5) {
-        type = "beaver"
-      }
-      obstacles.push({
-        i,
-        type
-      })
+    if (i <= 200) return; // skip early steps
+
+    // enforce minimum gap between obstacles
+    if (i - lastObstacleStep < minGap) return;
+
+    // random chance to place an obstacle
+    if (Math.random() < 0.01) { // adjust for overall sparsity
+      let type = types[typeIndex % types.length];
+      typeIndex++; // move to next type for next obstacle
+
+      obstacles.push({ i, type });
+      lastObstacleStep = i; // update last step used
     }
   });
 }
+
 
 let trailing = 80
 let stage = 0;
@@ -354,56 +372,71 @@ function zero() {
   let centerX = width / 2;
   let centerY = height / 2;
 
-  // --- Charlie card scanner ---
-  let rightX = centerX + 150;
-  let rightY = centerY - boxSize / 2;
+  if (!showEndPopup && !showWinPopup) {
+    // --- Charlie card scanner ---
+    let rightX = centerX + 150;
+    let rightY = centerY - boxSize / 2;
 
-  let tapOffsetX = ((55 + boxSize / 2) / 2) - 45;
-  let tapOffsetY = 190 + boxSize / 2;
-  let tapW = 50;
-  let tapH = 40;
+    let tapOffsetX = ((55 + boxSize / 2) / 2) - 45;
+    let tapOffsetY = 190 + boxSize / 2- 50;
+    let tapW = 50;
+    let tapH = 40;
 
-  // Trigger hover detection
-  if (!triggered &&
-      mouseX > rightX + tapOffsetX - tapW/2 &&
-      mouseX < rightX + tapOffsetX + tapW/2 &&
-      mouseY > rightY + tapOffsetY - tapH/2 &&
-      mouseY < rightY + tapOffsetY + tapH/2) {
-    triggered = true;
-  }
+    // Trigger hover detection
+    if (!triggered &&
+        mouseX > rightX + tapOffsetX - tapW/2 &&
+        mouseX < rightX + tapOffsetX + tapW/2 &&
+        mouseY > rightY + tapOffsetY - tapH/2 &&
+        mouseY < rightY + tapOffsetY + tapH/2) {
+      triggered = true;
+    }
 
-  // Animate gates
-  splitAmount = triggered ? lerp(splitAmount, 1, 0.25) : lerp(splitAmount, 0, 0.25);
-  
-  if(splitAmount > 0.995) {
-    stage = 1;
-  }
+    // Animate gates
+    splitAmount = triggered ? lerp(splitAmount, 1, 0.25) : lerp(splitAmount, 0, 0.25);
+    
+    if (splitAmount > 0.995) {
+      if (gateOpenedAt === null) {
+        gateOpenedAt = millis();  // mark the moment the gates opened
+      }
+      if (millis() - gateOpenedAt > gateDelay) {
+        stage = 1;                // only switch after delay
+        gateOpenedAt = null;      // reset for next run
+      }
+    }
 
-  // --- Draw gates ---
-  let maxGap = 200;
-  let gap = maxGap * splitAmount;
 
-  let desiredGateH = min(leftFareGate.height, height * 0.9);
-  let gateScale = desiredGateH / leftFareGate.height;
-  let gateH = leftFareGate.height * gateScale;
-  let gateW = leftFareGate.width * gateScale;
-  let gateY = height - gateH / 2 + 130;
+    // header 
+    let headerW = width;
+    let headerH = header.height * (headerW / header.width);
+    image(header, width / 2, headerH / 2, headerW, headerH);
 
-  let leftGateX = centerX - gap/2 - gateW/2 - 15;
-  let rightGateXPos = centerX + gap/2 + gateW/2 - 7;
 
-  image(leftFareGate, leftGateX, gateY, gateW, gateH);
-  image(rightFareGate, rightGateXPos, gateY, gateW, gateH);
+    // --- Draw gates ---
+    let maxGap = 200;
+    let gap = maxGap * splitAmount;
 
-  let otherScale = gateH / otherGates.height;
-  let otherW = otherGates.width * otherScale;
-  image(otherGates, centerX, gateY, otherW, gateH);
+    let desiredGateH = min(leftFareGate.height, height * 0.9);
+    let gateScale = desiredGateH / leftFareGate.height;
+    let gateH = leftFareGate.height * gateScale;
+    let gateW = leftFareGate.width * gateScale;
+    let gateY = height - gateH / 2 + 95;
 
-  // --- Draw cardTap and Charlie card ---
-  image(cardTap, rightX - tapOffsetX, rightY + tapOffsetY, tapW, tapH);
+    let leftGateX = centerX - gap/2 - gateW/2 - 13;
+    let rightGateXPos = centerX + gap/2 + gateW/2 - 5;
 
-  if (showGreenCircle && !showStartPopup && splitAmount < 0.99) {
-    image(charlieImg, mouseX, mouseY, 120, 73);
+    image(leftFareGate, leftGateX, gateY, gateW, gateH);
+    image(rightFareGate, rightGateXPos, gateY, gateW, gateH);
+
+    let otherScale = gateH / otherGates.height;
+    let otherW = otherGates.width * otherScale;
+    image(otherGates, centerX, gateY, otherW, gateH);
+
+    // --- Draw cardTap and Charlie card ---
+    image(cardTap, rightX - tapOffsetX, rightY + tapOffsetY, tapW, tapH);
+
+    if (showGreenCircle && !showStartPopup && splitAmount < 0.99) {
+      image(charlieImg, mouseX, mouseY, 120, 73);
+    }
   }
 
   // --- Start popup ---
@@ -453,7 +486,7 @@ function drawResetButton(centerX, centerY) {
   let hovering = mouseX > centerX - scaledW/2 && mouseX < centerX + scaledW/2 &&
                  mouseY > centerY && mouseY < centerY + scaledH;
 
-  fill(hovering ? color('#82076c') : color('black'));
+  fill(hovering ? color('#555555ff') : color('black'));
   rect(centerX - scaledW/2, centerY, scaledW, scaledH, 4);
 
   fill(255);
@@ -500,6 +533,7 @@ function resetGame() {
   t_catchup = 0;
   done = false;
   dead = false;
+  gateOpenedAt = null;
   generateObstacles();
 }
 
@@ -508,6 +542,9 @@ function keyPressed() {
     if (showStartPopup) {
       showStartPopup = false;
       showGreenCircle = true;
+    } else if (!isJumping && stage === 1) {
+      isJumping = true;
+      jumpVel = jumpStrength;
     } else {
       showGreenCircle = !showGreenCircle;
     }
@@ -530,123 +567,146 @@ function one() {
   
   background(255);
   imageMode(CENTER);
-  
-  if (keyIsDown(32)) {
-    jump = 40
-  } else if ((keyIsDown(UP_ARROW) && i < steps.length) || i == 0) {
-    let step = steps[i]
+
+  // --- Handle player movement ---
+  if ((keyIsDown(UP_ARROW) && i < steps.length) || i === 0) {
+    let step = steps[i];
     if(step.done) {
       done = true;
       background('green');
       return;
     }
     if(stations[i]) {
-      station = stations[i]
+      station = stations[i];
     }
-    sy = sy + step.y;
-    sx = sx + step.x;
-    i = i + 1
-    jump = max(jump - 1, 0)
-    if(i % 4 == 0) {
-      moves = moves + 1;
+    sy += step.y;
+    sx += step.x;
+    i += 1;
+    if(i % 4 === 0) {
+      moves += 1;
     }
   } else if (i > trailing) {
-    t_catchup = t_catchup + 1
+    t_catchup += 1;
   }
-  
-  
-  
+
   if (i > trailing) {
-    tx = steps.slice(i - trailing + t_catchup, i).reduce(
-      (accumulator, step) => accumulator + step.x,
-      0,
-    )
-    ty = steps.slice(i - trailing + t_catchup, i).reduce(
-      (accumulator, step) => accumulator + step.y,
-      0,
-    )
-    tr = steps.slice(i - trailing + t_catchup, i).length > 0 ? steps.slice(i - trailing + t_catchup, i)[0].r : 0
+    let slice = steps.slice(i - trailing + t_catchup, i);
+    tx = slice.reduce((acc, step) => acc + step.x, 0);
+    ty = slice.reduce((acc, step) => acc + step.y, 0);
+    tr = slice.length > 0 ? slice[0].r : 0;
   }
-  
-  map_img.resize(3600, 0)
-  image(map_img, base_pos_x - sx, base_pos_y - sy);
-  mascot = jump > 0 ? mascots[0] : mascots[moves % 4]
-  mascot.resize(90, 0)
-  image(mascot, 450, 300);
-  let subway_img = getSubwayImage(tr || 0)
-  subway_img.resize(tr >= 45 ? 200 : 0, tr >= 45 ? 0 : 200)
-  if(tx != null) {
-    image(subway_img, max(450 - tx, 0), max(305 - ty, 0));
-  }
-  
-  obstacles.map(obs => {
-    if(obs.i < i) {
-      return
+    
+  // --- Jump physics ---
+  if (isJumping) {
+    // vertical movement
+    mascotY += jumpVel;
+    jumpVel += gravity;
+
+    // landing
+    if (mascotY >= groundY) {
+      mascotY = groundY;
+      isJumping = false;
+      jumpVel = 0;
     }
-    stepsToGetTo = steps.slice(i - 1, obs.i + 1)
-    obs_x = stepsToGetTo.reduce(
-      (accumulator, step) => accumulator + step.x,
-      0,
-    )
-    obs_y = stepsToGetTo.reduce(
-      (accumulator, step) => accumulator + step.y,
-      0,
-    )
-    if(obs.type == "car") {
-      carImage = getCarImage(steps[obs.i].r)
-      carImage.resize(Math.abs(steps[obs.i].r) > 25 ? 0 : 120, Math.abs(steps[obs.i].r) > 25 ? 120 : 0)
-      if(frameCount % 100 > 15) {
+  }
+
+  // --- Draw map ---
+  map_img.resize(3600, 0);
+  image(map_img, base_pos_x - sx, base_pos_y - sy);
+
+
+  // --- Draw and check obstacles ---
+  obstacles.forEach(obs => {
+    if (obs.i < i) return; // obstacle is behind the player
+
+    if (i > obs.i && !obs.passed) return;
+
+    // Calculate relative position
+    let stepsToGetTo = steps.slice(i - 1, obs.i + 1);
+    let obs_x = stepsToGetTo.reduce((acc, step) => acc + step.x, 0);
+    let obs_y = stepsToGetTo.reduce((acc, step) => acc + step.y, 0);
+
+    const COLLIDE_RANGE = 50; // adjust collision sensitivity
+    let collided = abs(obs_x) < COLLIDE_RANGE && abs(obs_y) < COLLIDE_RANGE && !isJumping;
+
+    if (obs.type === "car") {
+      let carImage = getCarImage(steps[obs.i].r);
+      let carW = Math.abs(steps[obs.i].r) > 25 ? 120 : 0;
+      let carH = Math.abs(steps[obs.i].r) > 25 ? 0 : 120;
+      carImage.resize(carW, carH);
+
+      // Flicker effect
+      if(frameCount % 100 > 40) {
         tint(255, 65);
       } else {
-        if(i > (obs.i - 10) && i < (obs.i + 10)) {
+        tint(255, 255);
+        if(collided) {
           stage = 0;
           showEndPopup = true;
           dead = true;
           return;
         }
       }
-      image(carImage, 450 + obs_x, 300 + obs_y)
+      image(carImage, 450 + obs_x, 300 + obs_y);
       tint(255, 255);
-    } else if(obs.type == "bear") {
-      bear.resize(60, 0)
-      image(bear, 450 + obs_x, 300 + obs_y)
-      if(i > (obs.i - 10) && i < (obs.i + 10) && jump == 0) {
+
+    } else if (obs.type === "bear") {
+      bear.resize(60, 0);
+      image(bear, 450 + obs_x, 300 + obs_y);
+      if(collided) {
         stage = 0;
         showEndPopup = true;
         dead = true;
         return;
       }
-    } else {
-      beaver.resize(60, 0)
-      image(beaver, 450 + obs_x, 300 + obs_y)
-      if(i > (obs.i - 10) && i < (obs.i + 10) && jump == 0) {
+
+    } else if (obs.type === "beaver") {
+      beaver.resize(60, 0);
+      image(beaver, 450 + obs_x, 300 + obs_y);
+      if(collided) {
         stage = 0;
         showEndPopup = true;
         dead = true;
         return;
       }
     }
-  })
+  });
+
+    // --- Draw mascot ---
+  let mascot = isJumping ? mascots[0] : mascots[moves % 4];
+  mascot.resize(90, 0);
+  image(mascot, 450, mascotY);
+
+  // --- Draw subway ---
+  let subway_img = getSubwayImage(tr || 0);
+  subway_img.resize(tr >= 45 ? 200 : 0, tr >= 45 ? 0 : 200);
+  if(tx != null) {
+    image(subway_img, max(450 - tx, 0), max(305 - ty, 0));
+  }
+
+
+  // --- HUD ---
   stroke(0);
   strokeWeight(2);
-  fill('#00843d')
-  rect(20, 60, 250, 30)
-  fill('white')
-  rect(20, 90, 250, 30)
+  fill('#00843d');
+  rect(20, 60, 250, 30);
+  fill('white');
+  rect(20, 90, 250, 30);
   
-  fill('white')
-  rect(20, 490, 250, 50)
+  fill('white');
+  rect(20, 490, 250, 50);
   noStroke();
   textAlign(CENTER, CENTER);
   textSize(20);
   textFont(fontBold);
-  text(`${station}`, 20 + 125, 75)
+  text(`${station}`, 20 + 125, 75);
   textSize(13);
-  fill('black')
+  fill('black');
   text(`GREEN LINE - PARK ST & NORTH`, 20 + 125, 105);
   text(`UP TO RUN`, 20 + 125, 505);
   text(`SPACE TO JUMP`, 20 + 125, 525);
 }
+
 
 window.addEventListener("keydown", function(e) {
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
