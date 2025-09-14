@@ -9,3 +9,5 @@ Our game was inspired by that race; now transit nerds anywhere in the world can 
 ![lose](https://github.com/user-attachments/assets/0434f115-4c9d-4bb3-8fd3-99a78dc26613)
 
 ![start](https://github.com/user-attachments/assets/3a8803af-382c-4627-9975-1ce1a94f98ba)
+
+Built by Allison, Jin, and Sam at HackMIT 2025! 🦫 🐻
