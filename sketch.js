@@ -374,7 +374,6 @@ function zero() {
 
   // Animate gates
   splitAmount = triggered ? lerp(splitAmount, 1, 0.25) : lerp(splitAmount, 0, 0.25);
-  console.log(splitAmount)
   
   if(splitAmount > 0.995) {
     stage = 1;
