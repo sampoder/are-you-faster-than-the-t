@@ -123,9 +123,10 @@ let stations = {
 let isJumping = false;
 let jumpVel = 0;
 let gravity = 1.2;
-let jumpStrength = -18;
+let jumpStrength = -15;
 let groundY = 300;
 let mascotY = groundY;
+let jumpProgress = 0;
 
 let steps = [
   {
@@ -568,6 +569,8 @@ function one() {
   background(255);
   imageMode(CENTER);
 
+
+
   // --- Handle player movement ---
   if ((keyIsDown(UP_ARROW) && i < steps.length) || i === 0) {
     let step = steps[i];
@@ -595,20 +598,37 @@ function one() {
     ty = slice.reduce((acc, step) => acc + step.y, 0);
     tr = slice.length > 0 ? slice[0].r : 0;
   }
-    
+
+
   // --- Jump physics ---
   if (isJumping) {
-    // vertical movement
+    // Vertical arc only
     mascotY += jumpVel;
     jumpVel += gravity;
 
-    // landing
+    if (i < steps.length) {
+            let step = steps[i];
+            sx += step.x; // full step forward
+            sy += step.y; // full step up/down
+            i += 1;       // increment integer index
+            if (i % 4 === 0) moves += 1; // maintain running animation
+            if (step.done) {
+                done = true;
+            }
+        }
+
+    // Landing check
     if (mascotY >= groundY) {
       mascotY = groundY;
       isJumping = false;
       jumpVel = 0;
     }
   }
+
+
+
+
+
 
   // --- Draw map ---
   map_img.resize(3600, 0);
